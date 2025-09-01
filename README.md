@@ -26,8 +26,8 @@ The functions are written with:
 
 ## Structure
 
-/src   – Axon functions (ready to paste into SkySpark)
-/docs  – Annotated notes & explanations for each function
+/functions   – Axon functions (ready to paste into SkySpark)
+/notes  – Annotated notes & explanations for each function
 
 ---
 
