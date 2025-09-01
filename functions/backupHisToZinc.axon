@@ -1,0 +1,34 @@
+// Backup point history for haystackCur and arcbeamCur connectors
+// Save past data to Zinc files in the project io/ folder
+
+(dateSpan) => do
+  // Define the connectors we want to back up
+  // Each dict holds:
+  //   ref  - label for reporting
+  //   recs - all points for that connector
+  //   uri  - file location to write to
+  conns : [
+    {ref:"haystackCur", recs: readAll(haystackCur), uri:`io/haystackCurHis.zinc`},
+    {ref:"arcbeamCur",  recs: readAll(arcbeamCur),  uri:`io/arcbeamCurHis.zinc`}
+  ]
+
+  // For each connector, check points, read history, and write to file
+  results : conns.map(conn => do
+    recs : conn->recs
+    if (recs.isEmpty) 
+      return {ref:conn->ref, status:"No points found"}
+
+    // Pull history for given date span
+    his : recs.hisRead(dateSpan)
+    // If no rows, or only timestamp col, skip
+    if (his.size == 0 or his.colNames.size == 1)
+      return {ref:conn->ref, status:"No history rows"}
+
+    // Write history to Zinc file
+    his.ioWriteZinc(conn->uri)
+    return {ref:conn->ref, status:"Wrote " + his.size.toStr + " rows"}
+  end)
+
+  // Return grid of results for all connectors
+  return results
+end

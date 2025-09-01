@@ -1,0 +1,53 @@
+// Restore point history for haystackCur and arcbeamCur connectors
+// Reads backup Zinc files from the io/ folder and writes rows back into Skyspark
+
+() => do
+  // Get a list of all files currently in the io/ directory
+  files : ioDir(`io/`)
+
+  // Define the connectors we expect to restore
+  // Each dict holds:
+  //   ref    - label for reporting
+  //   name   - expected Zinc filename
+  //   points - all points for that connector
+  conns : [
+    {ref:"haystackCur", name:"haystackCurHis.zinc", points: readAll(point and haystackCur)},
+    {ref:"arcbeamCur",  name:"arcbeamCurHis.zinc",  points: readAll(point and arcbeamCur)}
+  ]
+
+  // For each connector, check if its backup file exists and restore history if present
+  results : conns.map(conn => do
+    // Look for the matching backup file in io/
+    row : files.find(r => r->name == conn->name)
+    if (row == null)
+      return [{ref:conn->ref, status:"No history file present"}]
+
+    // Load the Zinc backup into memory as a grid
+    his : ioReadZinc(row->uri)
+
+    // For each point, extract its matching column and restore history
+    return conn->points.map(p => do
+      rec : getHisForPoint(p, his)
+      if (rec == null) 
+        // No matching column for this point in the backup file
+        return {ref:conn->ref, status:"No match"}
+      else
+        // Work out totals so we can report what we restored
+        col     : rec.colNames[1]        // the point’s data column
+        total   : rec.size               // total rows in the slice
+        clean   : rec.findAll(r => r[col] != null) // strip out nulls
+        kept    : clean.size             // rows kept
+        dropped : total - kept           // rows dropped
+
+        // Important: nulls are removed because Skyspark cannot write empty values
+        // hisWrite() requires actual data rows or it will fail
+        hisWrite(clean, p)
+
+        // Return a status message for this point
+        return {ref:conn->ref, status:"Wrote " + kept.toStr + " rows (dropped " + dropped.toStr + ") for " + col}
+    end)
+  end)
+
+  // Return a grid of results across all connectors and points
+  return results
+end

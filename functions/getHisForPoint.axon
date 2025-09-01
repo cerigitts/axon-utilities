@@ -1,0 +1,27 @@
+// Match a live point to its history column in the backup grid
+// Returns a grid with only ts + the matching data column
+(point, his) => do
+  // Get all column names from the backup history grid
+  hisColNames : his.colNames
+
+  // Find the first column that matches this point’s connector tag
+  hisColName : hisColNames.find(colName => do
+    // Skip the timestamp column
+    if (colName == "ts") return false
+
+    // Look at the column’s metadata
+    colMeta : his.col(colName).meta
+
+    // Match logic:
+    // - If the column has haystackCur, check against the point’s haystackCur
+    // - If the column has arcbeamCur, check against the point’s arcbeamCur
+    return (colMeta.has("haystackCur") and colMeta->haystackCur == point->haystackCur) or
+           (colMeta.has("arcbeamCur")  and colMeta->arcbeamCur  == point->arcbeamCur)
+  end)
+
+  // If no match found, return null to avoid crashing restore loop
+  if (hisColName == null) return null
+
+  // Return only ts and the matched data column in correct order
+  return his.reorderCols(["ts", hisColName])
+end
